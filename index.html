@@ -210,14 +210,15 @@
   .file-btn:hover { border-color: var(--accent); color: var(--text); }
   #charFile { display: none; }
   .small-link {
+    display: block;
     background: none;
     border: none;
-    color: var(--text-faint);
-    font-size: 0.68rem;
+    color: var(--accent);
+    font-size: 0.7rem;
     text-decoration: underline;
     cursor: pointer;
     padding: 0;
-    margin-top: 0.4rem;
+    margin: 0 0 0.5rem;
   }
   textarea#charPasteArea {
     width: 100%;
@@ -297,6 +298,7 @@
   <span style="display:flex;align-items:center;gap:0.35rem;"><img src="https://feralucce.github.io/20_Below_Dice/icon.svg" alt="" width="20" height="20" /> 20 Below Dice</span>
   <span class="status"><span class="dot" id="connDot"></span><span id="connText">standalone</span></span>
 </h1>
+<div id="charLinkedBar" style="display:none;font-size:0.68rem;color:var(--gold);margin:-0.25rem 0 0.5rem;">Linked to <span id="charLinkedName"></span></div>
 
 <div class="tabs">
   <div class="tab active" data-panel="skill">Skill</div>
@@ -314,6 +316,12 @@
     <div class="el-btn" data-el="Fire">Fire</div>
     <div class="el-btn" data-el="Water">Water</div>
     <div class="el-btn" data-el="Moira">Moira</div>
+  </div>
+  <div class="row" id="skSkillRow" style="display:none">
+    <div class="field">
+      <label>Skill (fills Tier)</label>
+      <select id="skSkillSelect"><option value="">— manual —</option></select>
+    </div>
   </div>
   <div class="row">
     <div class="field">
@@ -345,6 +353,16 @@
 
 <!-- DAMAGE ROLL -->
 <div class="panel" id="panel-damage">
+  <div class="row" id="dmgAttackTypeRow" style="display:none">
+    <div class="field">
+      <label>Attack type (fills boost sub-stat)</label>
+      <div class="elements">
+        <div class="el-btn" data-substat="Ferocity">Physical</div>
+        <div class="el-btn" data-substat="Presence">Social</div>
+        <div class="el-btn" data-substat="Psyche">Mental</div>
+      </div>
+    </div>
+  </div>
   <div class="row">
     <div class="field">
       <label>Dice (weapon)</label>
@@ -370,6 +388,7 @@
 
 <!-- INITIATIVE -->
 <div class="panel" id="panel-init">
+  <button class="small-link" id="initFillBtn" style="display:none">Fill from character</button>
   <div class="row">
     <div class="field">
       <label>Initiative sub-stat</label>
@@ -381,6 +400,7 @@
 
 <!-- CONTESTED POOL -->
 <div class="panel" id="panel-pool">
+  <button class="small-link" id="poolFillBtn" style="display:none">Fill dice from character's Potence</button>
   <div class="row">
     <div class="field">
       <label>Potence (dice)</label>
@@ -616,17 +636,53 @@
     });
   });
 
-  // Element toggle (single-select)
-  document.querySelectorAll(".el-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const wasOn = btn.classList.contains("on");
-      document.querySelectorAll(".el-btn").forEach((b) => b.classList.remove("on"));
-      if (!wasOn) btn.classList.add("on");
+  // Element toggle (single-select within each .elements group)
+  document.querySelectorAll(".elements").forEach((group) => {
+    group.querySelectorAll(".el-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const wasOn = btn.classList.contains("on");
+        group.querySelectorAll(".el-btn").forEach((b) => b.classList.remove("on"));
+        if (!wasOn) {
+          btn.classList.add("on");
+          if (loadedCharacter && btn.dataset.el) {
+            const val = loadedCharacter.attributes && loadedCharacter.attributes[btn.dataset.el];
+            if (val != null) document.getElementById("skAttr").value = val;
+          }
+          if (loadedCharacter && btn.dataset.substat) {
+            const val = loadedCharacter.subStats && loadedCharacter.subStats[btn.dataset.substat];
+            if (val != null) document.getElementById("dmgBoostAmt").value = val;
+          }
+        }
+      });
     });
   });
 
   // ---- Character viewer (read-only; formulas ported from 20 Below's app/state.js) ----
   const CHAR_STORAGE_KEY = "twentybelow-dice.character";
+  let loadedCharacter = null;
+
+  function refreshCharacterLinks() {
+    const has = !!loadedCharacter;
+    document.getElementById("skSkillRow").style.display = has ? "" : "none";
+    document.getElementById("dmgAttackTypeRow").style.display = has ? "" : "none";
+    document.getElementById("initFillBtn").style.display = has ? "" : "none";
+    document.getElementById("poolFillBtn").style.display = has ? "" : "none";
+    document.getElementById("charLinkedBar").style.display = has ? "" : "none";
+    if (has) document.getElementById("charLinkedName").textContent = loadedCharacter.name || "Unnamed";
+
+    const sel = document.getElementById("skSkillSelect");
+    sel.innerHTML = '<option value="">— manual —</option>';
+    if (has) {
+      Object.entries(loadedCharacter.skills || {})
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([name, tier]) => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = `${name} (${TIER_NAMES[tier] || tier})`;
+          sel.appendChild(opt);
+        });
+    }
+  }
 
   function computeFiguredCharacteristics(state) {
     const s = state.subStats || {};
@@ -786,17 +842,21 @@
     } catch (e) {
       // storage unavailable (e.g. sandboxed iframe) - still render for this session
     }
+    loadedCharacter = state;
     renderCharacter(state);
+    refreshCharacterLinks();
   }
 
   function clearCharacter() {
     try {
       localStorage.removeItem(CHAR_STORAGE_KEY);
     } catch (e) {}
+    loadedCharacter = null;
     document.getElementById("charView").style.display = "none";
     document.getElementById("charView").innerHTML = "";
     document.getElementById("charEmpty").style.display = "";
     document.getElementById("charFile").value = "";
+    refreshCharacterLinks();
   }
 
   document.getElementById("charFile").addEventListener("change", (e) => {
@@ -817,6 +877,22 @@
 
   document.getElementById("charPasteLoad").addEventListener("click", () => {
     loadCharacterJson(document.getElementById("charPasteArea").value);
+  });
+
+  document.getElementById("skSkillSelect").addEventListener("change", (e) => {
+    if (!loadedCharacter || !e.target.value) return;
+    const tier = loadedCharacter.skills[e.target.value];
+    if (tier != null) document.getElementById("skTier").value = tier;
+  });
+
+  document.getElementById("initFillBtn").addEventListener("click", () => {
+    if (!loadedCharacter) return;
+    document.getElementById("initSub").value = loadedCharacter.subStats.Initiative ?? 0;
+  });
+
+  document.getElementById("poolFillBtn").addEventListener("click", () => {
+    if (!loadedCharacter) return;
+    document.getElementById("poolDice").value = loadedCharacter.subStats.Potence ?? 1;
   });
 
   try {
