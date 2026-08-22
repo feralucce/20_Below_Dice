@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>20 Below Dice</title>
+<style>
+  :root {
+    --bg: #0a1720;
+    --panel: #12232e;
+    --panel-2: #0e1c26;
+    --panel-border: #24404f;
+    --text: #eaf5fb;
+    --text-dim: #8fadbe;
+    --text-faint: #5c7686;
+    --accent: #3d84c4;
+    --accent-dim: #1c3548;
+    --ok: #4caf7d;
+    --danger: #d1584f;
+    --gold: #d4af6a;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  body { padding: 0.6rem 0.7rem 0.8rem; }
+  h1 {
+    font-size: 0.95rem;
+    margin: 0 0 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    letter-spacing: 0.02em;
+  }
+  .status {
+    font-size: 0.68rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-faint);
+    font-weight: 400;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+  .dot.on { background: var(--ok); }
+
+  .tabs { display: flex; gap: 0.3rem; margin-bottom: 0.55rem; }
+  .tab {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    border-radius: 5px;
+    padding: 0.35rem 0.2rem;
+    font-size: 0.68rem;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 0.6rem 0.65rem;
+    display: none;
+  }
+  .panel.active { display: block; }
+
+  .row { display: flex; gap: 0.5rem; margin-bottom: 0.45rem; }
+  .field { flex: 1; min-width: 0; }
+  label {
+    display: block;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-faint);
+    margin-bottom: 0.2rem;
+  }
+  input[type="number"], select {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 0.32rem 0.4rem;
+    font-size: 0.85rem;
+  }
+  input[type="number"]:focus, select:focus { outline: none; border-color: var(--accent); }
+
+  .elements { display: flex; gap: 0.3rem; margin-bottom: 0.45rem; flex-wrap: wrap; }
+  .el-btn {
+    flex: 1 1 auto;
+    min-width: 58px;
+    background: var(--panel-2);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    border-radius: 4px;
+    padding: 0.3rem 0.2rem;
+    font-size: 0.68rem;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .el-btn.on { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+
+  .check-row { display: flex; gap: 0.9rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+  .check input { accent-color: var(--accent); }
+
+  .roll-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    margin-top: 0.15rem;
+  }
+  .roll-btn:hover { filter: brightness(1.1); }
+  .roll-btn:active { filter: brightness(0.9); }
+
+  .result {
+    margin-top: 0.6rem;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-left: 3px solid var(--accent);
+    border-radius: 5px;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.78rem;
+    min-height: 1.4rem;
+  }
+  .result.empty { color: var(--text-faint); font-style: italic; }
+  .result .headline { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.15rem; }
+  .result .headline.success { color: var(--ok); }
+  .result .headline.fail { color: var(--danger); }
+  .result .dice { color: var(--text-dim); font-family: "Consolas", monospace; font-size: 0.72rem; }
+  .die { display: inline-block; padding: 0.05rem 0.32rem; border-radius: 3px; margin-right: 0.15rem; background: var(--panel-2); border: 1px solid var(--panel-border); }
+  .die.kept { border-color: var(--gold); color: var(--gold); }
+  .die.connect { border-color: var(--danger); color: var(--danger); }
+  .die.absorb { color: var(--text-faint); }
+
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.7rem;
+    margin-bottom: 0.3rem;
+  }
+  .log-header span { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
+  .log-header button {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--text-faint);
+    border-radius: 4px;
+    font-size: 0.65rem;
+    padding: 0.12rem 0.4rem;
+    cursor: pointer;
+  }
+  #log {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 210px;
+    overflow-y: auto;
+  }
+  .log-entry {
+    background: var(--panel-2);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.72rem;
+  }
+  .log-entry .who { color: var(--gold); font-weight: 600; }
+  .log-entry .summary { color: var(--text-dim); }
+  .log-entry.success { border-left: 2px solid var(--ok); }
+  .log-entry.fail { border-left: 2px solid var(--danger); }
+  .log-empty { color: var(--text-faint); font-size: 0.72rem; font-style: italic; padding: 0.2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>
+  20 Below Dice
+  <span class="status"><span class="dot" id="connDot"></span><span id="connText">standalone</span></span>
+</h1>
+
+<div class="tabs">
+  <div class="tab active" data-panel="skill">Skill</div>
+  <div class="tab" data-panel="damage">Damage</div>
+  <div class="tab" data-panel="init">Init</div>
+  <div class="tab" data-panel="pool">Pool</div>
+</div>
+
+<!-- SKILL ROLL -->
+<div class="panel active" id="panel-skill">
+  <div class="elements" id="elements">
+    <div class="el-btn" data-el="Earth">Earth</div>
+    <div class="el-btn" data-el="Air">Air</div>
+    <div class="el-btn" data-el="Fire">Fire</div>
+    <div class="el-btn" data-el="Water">Water</div>
+    <div class="el-btn" data-el="Moira">Moira</div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Attribute</label>
+      <input type="number" id="skAttr" min="1" max="10" value="5" />
+    </div>
+    <div class="field">
+      <label>Difficulty</label>
+      <input type="number" id="skDiff" min="0" max="10" value="5" />
+    </div>
+    <div class="field">
+      <label>Tier</label>
+      <select id="skTier">
+        <option value="0">Untrained</option>
+        <option value="1">Novice</option>
+        <option value="2" selected>Trained</option>
+        <option value="3">Adept</option>
+        <option value="4">Expert</option>
+        <option value="5">Master</option>
+      </select>
+    </div>
+  </div>
+  <div class="check-row">
+    <label class="check"><input type="checkbox" id="skExtraAdv" /> Extra Advantage</label>
+    <label class="check"><input type="checkbox" id="skExtraDis" /> Extra Disadvantage</label>
+  </div>
+  <button class="roll-btn" id="rollSkill">Roll</button>
+</div>
+
+<!-- DAMAGE ROLL -->
+<div class="panel" id="panel-damage">
+  <div class="row">
+    <div class="field">
+      <label>Dice (weapon)</label>
+      <input type="number" id="dmgDice" min="1" max="12" value="3" />
+    </div>
+    <div class="field">
+      <label>Target wall</label>
+      <input type="number" id="dmgWall" min="0" max="10" value="5" />
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Ki-boosted dice</label>
+      <input type="number" id="dmgBoost" min="0" max="12" value="0" />
+    </div>
+    <div class="field">
+      <label>Boost sub-stat</label>
+      <input type="number" id="dmgBoostAmt" min="0" max="10" value="0" />
+    </div>
+  </div>
+  <button class="roll-btn" id="rollDamage">Roll damage</button>
+</div>
+
+<!-- INITIATIVE -->
+<div class="panel" id="panel-init">
+  <div class="row">
+    <div class="field">
+      <label>Initiative sub-stat</label>
+      <input type="number" id="initSub" min="0" max="10" value="5" />
+    </div>
+  </div>
+  <button class="roll-btn" id="rollInit">Roll initiative</button>
+</div>
+
+<!-- CONTESTED POOL -->
+<div class="panel" id="panel-pool">
+  <div class="row">
+    <div class="field">
+      <label>Potence (dice)</label>
+      <input type="number" id="poolDice" min="1" max="12" value="4" />
+    </div>
+    <div class="field">
+      <label>Target's Soak</label>
+      <input type="number" id="poolWall" min="0" max="10" value="5" />
+    </div>
+  </div>
+  <button class="roll-btn" id="rollPool">Roll contest</button>
+</div>
+
+<div class="result empty" id="result">No roll yet.</div>
+
+<div class="log-header">
+  <span>Room log</span>
+  <button id="clearLog">Clear</button>
+</div>
+<div id="log"><div class="log-empty">No rolls yet this session.</div></div>
+
+<script type="module">
+  import OBR from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+
+  const CHANNEL = "com.feralucce.twentybelow-dice/rolls";
+  let connected = false;
+  let playerName = "You";
+
+  const d10 = () => Math.floor(Math.random() * 10) + 1;
+
+  function rollPair(mode) {
+    // mode: "normal" | "advantage" | "disadvantage"
+    if (mode === "normal") {
+      const dice = [d10(), d10()];
+      return { dice, kept: dice, total: dice[0] + dice[1], mode };
+    }
+    const dice = [d10(), d10(), d10()];
+    const sorted = dice.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
+    const keptIdx = mode === "advantage"
+      ? [sorted[0].i, sorted[1].i]
+      : [sorted[1].i, sorted[2].i];
+    const kept = keptIdx.map((i) => dice[i]);
+    return { dice, keptIdx, kept, total: kept[0] + kept[1], mode };
+  }
+
+  const TIER_NAMES = ["Untrained", "Novice", "Trained", "Adept", "Expert", "Master"];
+  const TIER_ADV = { 3: "advantage", 4: "advantage", 5: "advantage" };
+  const TIER_DIS = { 1: "disadvantage" };
+
+  function doSkillRoll() {
+    const el = document.getElementById("elements").querySelector(".el-btn.on");
+    const element = el ? el.dataset.el : null;
+    const attr = clampInt("skAttr", 1, 10);
+    const diff = clampInt("skDiff", 0, 10);
+    const tier = parseInt(document.getElementById("skTier").value, 10);
+    const extraAdv = document.getElementById("skExtraAdv").checked;
+    const extraDis = document.getElementById("skExtraDis").checked;
+
+    const advSources = (TIER_ADV[tier] ? 1 : 0) + (extraAdv ? 1 : 0);
+    const disSources = (TIER_DIS[tier] ? 1 : 0) + (extraDis ? 1 : 0);
+    let mode = "normal";
+    if (advSources > disSources) mode = "advantage";
+    else if (disSources > advSources) mode = "disadvantage";
+
+    const target = tier === 0 ? diff : attr + diff;
+    let roll = rollPair(mode);
+
+    const critSuccessVals = tier >= 4 ? [2, 3] : [2];
+    let isCritSuccess = critSuccessVals.includes(roll.total);
+    let isCritFail = roll.total === 20;
+    let masterNote = "";
+
+    if (isCritFail && tier === 5) {
+      const reroll = rollPair(mode);
+      if (reroll.total <= target) {
+        isCritFail = false;
+        masterNote = ` (Master reroll: ${reroll.total} downgrades the critical failure to a normal failure)`;
+      } else {
+        masterNote = ` (Master reroll: ${reroll.total}, critical failure stands)`;
+      }
+    }
+
+    const success = roll.total <= target;
+    const headline = `${roll.total} vs ${target} — ${isCritSuccess ? "CRITICAL SUCCESS" : isCritFail ? "CRITICAL FAILURE" : success ? "Success" : "Failure"}`;
+    const diceHtml = renderDice(roll);
+    const elLabel = element ? `${element} · ` : "";
+    const summary = `${elLabel}${TIER_NAMES[tier]} · Attr ${attr} + Diff ${diff} = ${target}${mode !== "normal" ? ` · ${mode}` : ""}`;
+
+    showResult(headline, success && !isCritFail, diceHtml, summary + masterNote);
+    broadcastRoll({
+      kind: "Skill Roll",
+      headline,
+      summary: summary + masterNote,
+      success: success && !isCritFail,
+    });
+  }
+
+  function doDamageRoll() {
+    const n = clampInt("dmgDice", 1, 12);
+    const wall = clampInt("dmgWall", 0, 10);
+    const boost = clampInt("dmgBoost", 0, 12);
+    const boostAmt = clampInt("dmgBoostAmt", 0, 10);
+
+    const dice = [];
+    let connects = 0;
+    for (let i = 0; i < n; i++) {
+      const raw = d10();
+      const boosted = i < boost;
+      const effective = boosted ? raw + boostAmt : raw;
+      const connect = effective > wall;
+      if (connect) connects++;
+      dice.push({ raw, effective, boosted, connect });
+    }
+
+    const headline = `${connects} of ${n} connect${connects === 1 ? "" : "s"} — ${connects} Level${connects === 1 ? "" : "s"}`;
+    const diceHtml = dice.map((d) => {
+      const label = d.boosted ? `${d.raw}+${boostAmt}=${d.effective}` : `${d.raw}`;
+      return `<span class="die ${d.connect ? "connect" : "absorb"}">${label}</span>`;
+    }).join("");
+    const summary = `${n}d10 vs wall ${wall}${boost > 0 ? ` · ${boost} boosted (+${boostAmt})` : ""}`;
+
+    showResult(headline, connects > 0, diceHtml, summary);
+    broadcastRoll({ kind: "Damage Roll", headline, summary, success: connects > 0 });
+  }
+
+  function doInitRoll() {
+    const sub = clampInt("initSub", 0, 10);
+    const raw = d10();
+    const total = raw + sub;
+    const headline = `Initiative: ${total}`;
+    const diceHtml = `<span class="die kept">${raw}</span> + ${sub}`;
+    const summary = `1d10 (${raw}) + ${sub}`;
+    showResult(headline, true, diceHtml, summary);
+    broadcastRoll({ kind: "Initiative", headline, summary, success: true });
+  }
+
+  function doPoolRoll() {
+    const n = clampInt("poolDice", 1, 12);
+    const wall = clampInt("poolWall", 0, 10);
+    const dice = [];
+    let successes = 0;
+    for (let i = 0; i < n; i++) {
+      const raw = d10();
+      const connect = raw > wall;
+      if (connect) successes++;
+      dice.push({ raw, connect });
+    }
+    const headline = `${successes} of ${n} success${successes === 1 ? "" : "es"}`;
+    const diceHtml = dice.map((d) => `<span class="die ${d.connect ? "connect" : "absorb"}">${d.raw}</span>`).join("");
+    const summary = `${n}d10 vs Soak ${wall}`;
+    showResult(headline, successes > 0, diceHtml, summary);
+    broadcastRoll({ kind: "Contested Pool", headline, summary, success: successes > 0 });
+  }
+
+  function renderDice(roll) {
+    if (roll.mode === "normal") {
+      return roll.dice.map((v) => `<span class="die kept">${v}</span>`).join("");
+    }
+    return roll.dice.map((v, i) => {
+      const kept = roll.keptIdx.includes(i);
+      return `<span class="die ${kept ? "kept" : ""}">${v}</span>`;
+    }).join(" ") + ` <span style="color:var(--text-faint)">(${roll.mode}, kept ${roll.kept.join("+")})</span>`;
+  }
+
+  function clampInt(id, lo, hi) {
+    const el = document.getElementById(id);
+    let v = parseInt(el.value, 10);
+    if (isNaN(v)) v = lo;
+    v = Math.max(lo, Math.min(hi, v));
+    el.value = v;
+    return v;
+  }
+
+  function showResult(headline, success, diceHtml, summary) {
+    const el = document.getElementById("result");
+    el.classList.remove("empty");
+    el.innerHTML = `<div class="headline ${success ? "success" : "fail"}">${headline}</div>
+      <div class="dice">${diceHtml}</div>
+      <div class="dice" style="margin-top:0.2rem;color:var(--text-faint)">${summary}</div>`;
+  }
+
+  function addLogEntry(entry) {
+    const logEl = document.getElementById("log");
+    const empty = logEl.querySelector(".log-empty");
+    if (empty) empty.remove();
+    const div = document.createElement("div");
+    div.className = `log-entry ${entry.success ? "success" : "fail"}`;
+    div.innerHTML = `<span class="who">${escapeHtml(entry.name)}</span> · ${escapeHtml(entry.kind)} — <span class="summary">${escapeHtml(entry.headline)}</span>`;
+    logEl.prepend(div);
+    while (logEl.children.length > 40) logEl.removeChild(logEl.lastChild);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  async function broadcastRoll(entry) {
+    entry.name = playerName;
+    addLogEntry(entry);
+    if (connected) {
+      try {
+        await OBR.broadcast.sendMessage(CHANNEL, entry, { destination: "ALL" });
+      } catch (e) {
+        console.error("20 Below Dice: broadcast failed", e);
+      }
+    }
+  }
+
+  // Tabs
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(`panel-${tab.dataset.panel}`).classList.add("active");
+    });
+  });
+
+  // Element toggle (single-select)
+  document.querySelectorAll(".el-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const wasOn = btn.classList.contains("on");
+      document.querySelectorAll(".el-btn").forEach((b) => b.classList.remove("on"));
+      if (!wasOn) btn.classList.add("on");
+    });
+  });
+
+  document.getElementById("rollSkill").addEventListener("click", doSkillRoll);
+  document.getElementById("rollDamage").addEventListener("click", doDamageRoll);
+  document.getElementById("rollInit").addEventListener("click", doInitRoll);
+  document.getElementById("rollPool").addEventListener("click", doPoolRoll);
+  document.getElementById("clearLog").addEventListener("click", () => {
+    document.getElementById("log").innerHTML = '<div class="log-empty">No rolls yet this session.</div>';
+  });
+
+  // Owlbear Rodeo connection
+  try {
+    OBR.onReady(async () => {
+      connected = true;
+      document.getElementById("connDot").classList.add("on");
+      document.getElementById("connText").textContent = "connected";
+      try {
+        playerName = await OBR.player.getName();
+      } catch (e) {
+        playerName = "You";
+      }
+      OBR.broadcast.onMessage(CHANNEL, (event) => {
+        addLogEntry(event.data);
+      });
+    });
+  } catch (e) {
+    console.warn("20 Below Dice: not running inside Owlbear Rodeo, standalone mode", e);
+  }
+</script>
+</body>
+</html>
