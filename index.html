@@ -157,6 +157,19 @@
   .die.connect { border-color: var(--danger); color: var(--danger); }
   .die.absorb { color: var(--text-faint); }
 
+  .section-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    margin-bottom: 0.4rem;
+  }
+  .section-label-spaced {
+    margin-top: 0.7rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--panel-border);
+  }
+
   .log-header {
     display: flex;
     justify-content: space-between;
@@ -302,9 +315,8 @@
 
 <div class="tabs">
   <div class="tab active" data-panel="skill">Skill</div>
-  <div class="tab" data-panel="damage">Damage</div>
+  <div class="tab" data-panel="damage">Combat</div>
   <div class="tab" data-panel="init">Init</div>
-  <div class="tab" data-panel="pool">Pool</div>
   <div class="tab" data-panel="char">Char</div>
 </div>
 
@@ -351,8 +363,32 @@
   <button class="roll-btn" id="rollSkill">Roll</button>
 </div>
 
-<!-- DAMAGE ROLL -->
+<!-- COMBAT: To-Hit + Damage -->
 <div class="panel" id="panel-damage">
+  <div class="section-label">To Hit</div>
+  <div class="elements" id="atkElements">
+    <div class="el-btn" data-attr="Earth">Earth</div>
+    <div class="el-btn" data-attr="Air">Air</div>
+    <div class="el-btn" data-attr="Fire">Fire</div>
+    <div class="el-btn" data-attr="Water">Water</div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Attribute</label>
+      <input type="number" id="atkAttr" min="1" max="10" value="5" />
+    </div>
+    <div class="field">
+      <label>Target's Defense</label>
+      <input type="number" id="atkDefense" min="0" max="10" value="5" />
+    </div>
+  </div>
+  <div class="check-row">
+    <label class="check"><input type="checkbox" id="atkExtraAdv" /> Advantage</label>
+    <label class="check"><input type="checkbox" id="atkExtraDis" /> Disadvantage</label>
+  </div>
+  <button class="roll-btn" id="rollToHit">Roll to hit</button>
+
+  <div class="section-label section-label-spaced">Damage</div>
   <div class="row" id="dmgAttackTypeRow" style="display:none">
     <div class="field">
       <label>Attack type (fills boost sub-stat)</label>
@@ -396,22 +432,6 @@
     </div>
   </div>
   <button class="roll-btn" id="rollInit">Roll initiative</button>
-</div>
-
-<!-- CONTESTED POOL -->
-<div class="panel" id="panel-pool">
-  <button class="small-link" id="poolFillBtn" style="display:none">Fill dice from character's Potence</button>
-  <div class="row">
-    <div class="field">
-      <label>Potence (dice)</label>
-      <input type="number" id="poolDice" min="1" max="12" value="4" />
-    </div>
-    <div class="field">
-      <label>Target's Soak</label>
-      <input type="number" id="poolWall" min="0" max="10" value="5" />
-    </div>
-  </div>
-  <button class="roll-btn" id="rollPool">Roll contest</button>
 </div>
 
 <!-- CHARACTER VIEWER (read-only - no editing, just loading what the app already exported) -->
@@ -511,6 +531,38 @@
     });
   }
 
+  // To-Hit: a plain Attribute-vs-Defense roll, no Skill involved - fixed at
+  // Trained-equivalent (uses the Attribute, no auto Advantage/Disadvantage,
+  // no widened crit range, no Master reroll), matching how the main app's
+  // Attack Roll always resolves regardless of any Skill Tier.
+  function doToHitRoll() {
+    const el = document.getElementById("atkElements").querySelector(".el-btn.on");
+    const element = el ? el.dataset.attr : null;
+    const attr = clampInt("atkAttr", 1, 10);
+    const defense = clampInt("atkDefense", 0, 10);
+    const extraAdv = document.getElementById("atkExtraAdv").checked;
+    const extraDis = document.getElementById("atkExtraDis").checked;
+
+    let mode = "normal";
+    if (extraAdv && !extraDis) mode = "advantage";
+    else if (extraDis && !extraAdv) mode = "disadvantage";
+
+    const target = attr + defense;
+    const roll = rollPair(mode);
+    const isCritSuccess = roll.total <= 2;
+    const isCritFail = roll.total === 20;
+    const success = roll.total <= target;
+    const hit = (success || isCritSuccess) && !isCritFail;
+
+    const headline = `${roll.total} vs ${target} — ${isCritSuccess ? "CRITICAL SUCCESS" : isCritFail ? "CRITICAL FAILURE" : success ? "Success" : "Failure"}${hit ? " (connects)" : " (misses)"}`;
+    const diceHtml = renderDice(roll);
+    const elLabel = element ? `${element} · ` : "";
+    const summary = `${elLabel}Attr ${attr} vs Defense ${defense} = ${target}${mode !== "normal" ? ` · ${mode}` : ""}`;
+
+    showResult(headline, hit, diceHtml, summary);
+    broadcastRoll({ kind: "To-Hit Roll", headline, summary, success: hit });
+  }
+
   function doDamageRoll() {
     const n = clampInt("dmgDice", 1, 12);
     const wall = clampInt("dmgWall", 0, 10);
@@ -548,24 +600,6 @@
     const summary = `1d10 (${raw}) + ${sub}`;
     showResult(headline, true, diceHtml, summary);
     broadcastRoll({ kind: "Initiative", headline, summary, success: true });
-  }
-
-  function doPoolRoll() {
-    const n = clampInt("poolDice", 1, 12);
-    const wall = clampInt("poolWall", 0, 10);
-    const dice = [];
-    let successes = 0;
-    for (let i = 0; i < n; i++) {
-      const raw = d10();
-      const connect = raw > wall;
-      if (connect) successes++;
-      dice.push({ raw, connect });
-    }
-    const headline = `${successes} of ${n} success${successes === 1 ? "" : "es"}`;
-    const diceHtml = dice.map((d) => `<span class="die ${d.connect ? "connect" : "absorb"}">${d.raw}</span>`).join("");
-    const summary = `${n}d10 vs Soak ${wall}`;
-    showResult(headline, successes > 0, diceHtml, summary);
-    broadcastRoll({ kind: "Contested Pool", headline, summary, success: successes > 0 });
   }
 
   function renderDice(roll) {
@@ -652,6 +686,10 @@
             const val = loadedCharacter.attributes && loadedCharacter.attributes[btn.dataset.el];
             if (val != null) document.getElementById("skAttr").value = val;
           }
+          if (loadedCharacter && btn.dataset.attr) {
+            const val = loadedCharacter.attributes && loadedCharacter.attributes[btn.dataset.attr];
+            if (val != null) document.getElementById("atkAttr").value = val;
+          }
           if (loadedCharacter && btn.dataset.substat) {
             const val = loadedCharacter.subStats && loadedCharacter.subStats[btn.dataset.substat];
             if (val != null) document.getElementById("dmgBoostAmt").value = val;
@@ -670,7 +708,6 @@
     document.getElementById("skSkillRow").style.display = has ? "" : "none";
     document.getElementById("dmgAttackTypeRow").style.display = has ? "" : "none";
     document.getElementById("initFillBtn").style.display = has ? "" : "none";
-    document.getElementById("poolFillBtn").style.display = has ? "" : "none";
     document.getElementById("charLinkedBar").style.display = has ? "" : "none";
     if (has) document.getElementById("charLinkedName").textContent = loadedCharacter.name || "Unnamed";
 
@@ -907,20 +944,15 @@
     document.getElementById("initSub").value = loadedCharacter.subStats.Initiative ?? 0;
   });
 
-  document.getElementById("poolFillBtn").addEventListener("click", () => {
-    if (!loadedCharacter) return;
-    document.getElementById("poolDice").value = loadedCharacter.subStats.Potence ?? 1;
-  });
-
   try {
     const saved = localStorage.getItem(CHAR_STORAGE_KEY);
     if (saved) loadCharacterJson(saved);
   } catch (e) {}
 
   document.getElementById("rollSkill").addEventListener("click", doSkillRoll);
+  document.getElementById("rollToHit").addEventListener("click", doToHitRoll);
   document.getElementById("rollDamage").addEventListener("click", doDamageRoll);
   document.getElementById("rollInit").addEventListener("click", doInitRoll);
-  document.getElementById("rollPool").addEventListener("click", doPoolRoll);
   document.getElementById("clearLog").addEventListener("click", () => {
     document.getElementById("log").innerHTML = '<div class="log-empty">No rolls yet this session.</div>';
   });
