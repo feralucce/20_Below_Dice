@@ -615,7 +615,11 @@
     addLogEntry(entry);
     if (connected) {
       try {
-        await OBR.broadcast.sendMessage(CHANNEL, entry, { destination: "ALL" });
+        // "REMOTE" (the default) sends to every other connected player -
+        // not "ALL", which loops the message back to the sender too and
+        // would double this entry in the sender's own log on top of the
+        // addLogEntry() call directly above.
+        await OBR.broadcast.sendMessage(CHANNEL, entry, { destination: "REMOTE" });
       } catch (e) {
         console.error("20 Below Dice: broadcast failed", e);
       }
@@ -673,7 +677,11 @@
     const sel = document.getElementById("skSkillSelect");
     sel.innerHTML = '<option value="">— manual —</option>';
     if (has) {
+      // Only Skills actually Trained or better - a character export lists
+      // every catalog Skill (most at Untrained/0), so without this filter
+      // the dropdown is ~90 entries deep, nearly all useless clutter.
       Object.entries(loadedCharacter.skills || {})
+        .filter(([, tier]) => tier > 0)
         .sort((a, b) => a[0].localeCompare(b[0]))
         .forEach(([name, tier]) => {
           const opt = document.createElement("option");
@@ -748,7 +756,11 @@
       ? `<div class="tag-list">${resourceEntries.map(([name, lvl]) => `<span class="tag">${escapeHtml(name)} <span class="tv">${lvl}</span></span>`).join("")}</div>`
       : `<div class="item-line">None.</div>`;
 
-    const gifts = state.gifts || [];
+    // Both Gifts and Flaws exports list every catalog entry (most at Level
+    // 0/untaken) - same shape as Skills, which already filters correctly
+    // below; these two didn't, and were cluttering the viewer with dozens
+    // of "Level 0" entries the character never actually took.
+    const gifts = (state.gifts || []).filter((g) => g.level > 0);
     const giftsHtml = gifts.length
       ? gifts.map((g) => {
           const extras = [];
@@ -759,7 +771,7 @@
         }).join("")
       : `<div class="item-line">None.</div>`;
 
-    const flaws = state.flaws || [];
+    const flaws = (state.flaws || []).filter((f) => f.level > 0);
     const flawsHtml = flaws.length
       ? `<div class="tag-list">${flaws.map((f) => `<span class="tag">${escapeHtml(f.name)}${f.level ? ` <span class="tv">${f.level}</span>` : ""}</span>`).join("")}</div>`
       : `<div class="item-line">None.</div>`;
