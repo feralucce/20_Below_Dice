@@ -278,6 +278,23 @@
   }
   .stat-chip .v { font-size: 1rem; font-weight: 700; color: var(--text); }
   .stat-chip .k { font-size: 0.58rem; text-transform: uppercase; color: var(--text-faint); letter-spacing: 0.03em; }
+  .stat-chip-tracker { padding: 0.2rem 0.15rem; }
+  .tracker-btns { display: flex; align-items: center; justify-content: center; gap: 0.25rem; }
+  .tracker-btns .v { min-width: 2.6em; }
+  .mini-btn {
+    flex-shrink: 0;
+    width: 1.15rem;
+    height: 1.15rem;
+    line-height: 1;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+  }
+  .mini-btn:hover { border-color: var(--accent); }
   .attr-row {
     display: flex;
     justify-content: space-between;
@@ -317,7 +334,7 @@
   <div class="tab active" data-panel="skill">Skill</div>
   <div class="tab" data-panel="damage">Combat</div>
   <div class="tab" data-panel="init">Init</div>
-  <div class="tab" data-panel="char">Char</div>
+  <div class="tab" data-panel="char">Character</div>
 </div>
 
 <!-- SKILL ROLL -->
@@ -442,7 +459,7 @@
     <button class="small-link" id="charPasteToggle">or paste JSON instead</button>
     <textarea id="charPasteArea" rows="5" style="display:none" placeholder="Paste the exported character .json here"></textarea>
     <button class="roll-btn" id="charPasteLoad" style="display:none">Load pasted JSON</button>
-    <div class="char-empty-note">Export a character from the <a href="https://feralucce.github.io/20_Below/app/" target="_blank" style="color:var(--accent)">20 Below character creator</a> (Sheet step &rarr; Save/Export), then load the file here. Read-only &mdash; nothing here edits the character; keep using the app for that.</div>
+    <div class="char-empty-note">Export a character from the <a href="https://feralucce.github.io/20_Below/app/" target="_blank" style="color:var(--accent)">20 Below character creator</a> (Sheet step &rarr; Save/Export), then load the file here. Health, Poise, Sanity, Ki, and Fate Tokens can be tracked live here during a session (kept in this browser only); everything else is read-only &mdash; keep using the app to actually build or update the character.</div>
   </div>
   <div id="charView" style="display:none"></div>
 </div>
@@ -769,14 +786,36 @@
       return `<div class="attr-row"><span class="an">${escapeHtml(name)}</span><span class="subs">${escapeHtml(subs)}</span><span class="av">${val}</span></div>`;
     }).join("");
 
+    // Health Levels/Poise/Sanity/Ki/Fate Tokens track live, in-session -
+    // -/+ buttons mutate loadedCharacter directly and re-save to
+    // localStorage (see the delegated click handler below); every other
+    // figured stat (Defense, Movement, Carrying Capacity) stays a plain,
+    // non-interactive chip.
+    const TRACKED = {
+      "Health Levels": { key: "health", get: () => state.currentHealth ?? figured["Health Levels"], max: figured["Health Levels"], floor: null },
+      Poise: { key: "poise", get: () => state.currentPoise ?? figured.Poise, max: figured.Poise, floor: null },
+      Sanity: { key: "sanity", get: () => state.currentSanity ?? figured.Sanity, max: figured.Sanity, floor: null },
+      Ki: { key: "ki", get: () => state.currentKi ?? figured.Ki, max: figured.Ki, floor: 0 },
+    };
     const statChips = Object.entries(figured).map(([k, v]) => {
-      let cur = "";
-      if (k === "Health Levels" && state.currentHealth != null) cur = `${state.currentHealth}/`;
-      if (k === "Poise" && state.currentPoise != null) cur = `${state.currentPoise}/`;
-      if (k === "Sanity" && state.currentSanity != null) cur = `${state.currentSanity}/`;
-      if (k === "Ki" && state.currentKi != null) cur = `${state.currentKi}/`;
-      return `<div class="stat-chip"><div class="v">${cur}${v}</div><div class="k">${escapeHtml(k)}</div></div>`;
-    }).join("");
+      const t = TRACKED[k];
+      if (!t) return `<div class="stat-chip"><div class="v">${v}</div><div class="k">${escapeHtml(k)}</div></div>`;
+      return `<div class="stat-chip stat-chip-tracker">
+        <div class="tracker-btns">
+          <button type="button" class="mini-btn" data-track="${t.key}" data-dir="-1">−</button>
+          <div class="v">${t.get()}/${t.max}</div>
+          <button type="button" class="mini-btn" data-track="${t.key}" data-dir="1">+</button>
+        </div>
+        <div class="k">${escapeHtml(k)}</div>
+      </div>`;
+    }).join("") + `<div class="stat-chip stat-chip-tracker">
+      <div class="tracker-btns">
+        <button type="button" class="mini-btn" data-track="fate" data-dir="-1">−</button>
+        <div class="v">${state.currentFateTokens ?? 0}</div>
+        <button type="button" class="mini-btn" data-track="fate" data-dir="1">+</button>
+      </div>
+      <div class="k">Fate Tokens</div>
+    </div>`;
 
     const trainedSkills = Object.entries(state.skills || {}).filter(([, tier]) => tier > 0);
     const skillsHtml = trainedSkills.length
@@ -818,7 +857,6 @@
       ? scars.map((s) => `<div class="item-line"><span class="in">${escapeHtml(s.title)}</span> (${s.physical ? "Physical" : "Mental"})</div>`).join("")
       : "";
 
-    const fateLine = state.currentFateTokens != null ? `<div class="item-line">Fate Tokens: <span class="in">${state.currentFateTokens}</span></div>` : "";
     const xpLine = state.xpEarned != null ? `<div class="item-line">XP earned: <span class="in">${state.xpEarned}</span></div>` : "";
     const notesHtml = state.finishingNotes
       ? `<p>${escapeHtml(state.finishingNotes).replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br>")}</p>`
@@ -838,7 +876,7 @@
       <div class="char-section">
         <div class="char-section-title">Figured Characteristics</div>
         <div class="stat-grid">${statChips}</div>
-        ${fateLine}${xpLine}
+        ${xpLine}
       </div>
 
       <div class="char-section">
@@ -877,6 +915,21 @@
     document.getElementById("charClear").addEventListener("click", clearCharacter);
     document.getElementById("charEmpty").style.display = "none";
     document.getElementById("charView").style.display = "";
+  }
+
+  // Persists loadedCharacter's current mutable trackers (Health/Poise/
+  // Sanity/Ki/Fate Tokens) back to the same localStorage slot it was loaded
+  // from, so a value tracked mid-session survives the popover closing and
+  // reopening (Owlbear Rodeo tears the iframe down each time). Everything
+  // else about the character (Skills, Gifts, Boons, etc.) still only ever
+  // comes from a fresh export - this doesn't turn the viewer into an editor.
+  function saveLoadedCharacter() {
+    if (!loadedCharacter) return;
+    try {
+      localStorage.setItem(CHAR_STORAGE_KEY, JSON.stringify(loadedCharacter));
+    } catch (e) {
+      // storage unavailable (e.g. sandboxed iframe) - the change still holds for this session
+    }
   }
 
   function loadCharacterJson(text) {
@@ -931,6 +984,37 @@
 
   document.getElementById("charPasteLoad").addEventListener("click", () => {
     loadCharacterJson(document.getElementById("charPasteArea").value);
+  });
+
+  // Delegated so it keeps working across renderCharacter()'s innerHTML
+  // rebuilds - #charView itself is never replaced, only its contents.
+  document.getElementById("charView").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-track]");
+    if (!btn || !loadedCharacter) return;
+    const dir = parseInt(btn.dataset.dir, 10);
+    const figured = computeFiguredCharacteristics(loadedCharacter);
+    const c = loadedCharacter;
+    switch (btn.dataset.track) {
+      case "health":
+        c.currentHealth = Math.min(figured["Health Levels"], (c.currentHealth ?? figured["Health Levels"]) + dir);
+        break;
+      case "poise":
+        c.currentPoise = Math.min(figured.Poise, (c.currentPoise ?? figured.Poise) + dir);
+        break;
+      case "sanity":
+        c.currentSanity = Math.min(figured.Sanity, (c.currentSanity ?? figured.Sanity) + dir);
+        break;
+      case "ki":
+        c.currentKi = Math.max(0, Math.min(figured.Ki, (c.currentKi ?? figured.Ki) + dir));
+        break;
+      case "fate":
+        c.currentFateTokens = Math.max(0, (c.currentFateTokens ?? 0) + dir);
+        break;
+      default:
+        return;
+    }
+    saveLoadedCharacter();
+    renderCharacter(c);
   });
 
   document.getElementById("skSkillSelect").addEventListener("change", (e) => {
