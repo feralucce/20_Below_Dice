@@ -1,6 +1,6 @@
 # 20 Below Dice
 
-An [Owlbear Rodeo](https://www.owlbear.rodeo/) extension for [20 Below](https://feralucce.github.io/20_Below/)'s dice mechanics. Doesn't reference a character sheet - just the raw rolls, entered by hand each time.
+An [Owlbear Rodeo](https://www.owlbear.rodeo/) extension for [20 Below](https://20belowrpg.com/)'s dice mechanics. Doesn't reference a character sheet - just the raw rolls, entered by hand each time.
 
 Covers four roll types, each in its own tab:
 
