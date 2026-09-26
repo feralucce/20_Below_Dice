@@ -1,11 +1,11 @@
 {
   "name": "20 Below Dice",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "manifest_version": 1,
   "author": "Feralucce",
   "homepage_url": "https://github.com/feralucce/20_Below_Dice",
   "icon": "https://feralucce.github.io/20_Below_Dice/icon.svg",
-  "description": "Roll 20 Below's core skill checks, weapon damage, initiative, and contested pools, shared with the room.",
+  "description": "Roll 20 Below's core skill checks, Physical, Social and Mental attacks, damage and initiative, shared with the room.",
   "action": {
     "title": "20 Below Dice",
     "icon": "https://feralucce.github.io/20_Below_Dice/icon.svg",

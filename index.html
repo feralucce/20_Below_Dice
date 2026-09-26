@@ -110,6 +110,7 @@
   .el-btn.on { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
 
   .check-row { display: flex; gap: 0.9rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+  .hint { font-size: 0.7rem; color: var(--text-faint); margin: 0 0 0.5rem; line-height: 1.4; }
   .check {
     display: flex;
     align-items: center;
@@ -355,7 +356,7 @@
   <div class="row">
     <div class="field">
       <label>Attribute</label>
-      <input type="number" id="skAttr" min="1" max="10" value="5" />
+      <input type="number" id="skAttr" min="1" max="20" value="5" />
     </div>
     <div class="field">
       <label>Difficulty</label>
@@ -373,6 +374,12 @@
       </select>
     </div>
   </div>
+  <div class="row">
+    <div class="field">
+      <label>Klotho (your Lucky Number)</label>
+      <input type="number" class="klotho" id="skKlotho" min="0" max="10" value="0" />
+    </div>
+  </div>
   <div class="check-row">
     <label class="check"><input type="checkbox" id="skExtraAdv" /> Extra Advantage</label>
     <label class="check"><input type="checkbox" id="skExtraDis" /> Extra Disadvantage</label>
@@ -383,20 +390,34 @@
 <!-- COMBAT: To-Hit + Damage -->
 <div class="panel" id="panel-damage">
   <div class="section-label">To Hit</div>
+  <div class="field">
+    <label>Kind of attack</label>
+    <div class="elements" id="atkKinds">
+      <div class="el-btn on" data-kind="Physical">Physical</div>
+      <div class="el-btn" data-kind="Social">Social</div>
+      <div class="el-btn" data-kind="Mental">Mental</div>
+    </div>
+  </div>
+  <div class="hint" id="atkKindNote"></div>
   <div class="elements" id="atkElements">
     <div class="el-btn" data-attr="Earth">Earth</div>
     <div class="el-btn" data-attr="Air">Air</div>
     <div class="el-btn" data-attr="Fire">Fire</div>
     <div class="el-btn" data-attr="Water">Water</div>
+    <div class="el-btn" data-attr="Moira" id="atkMoira" style="display:none">Moira</div>
   </div>
   <div class="row">
     <div class="field">
       <label>Attribute</label>
-      <input type="number" id="atkAttr" min="1" max="10" value="5" />
+      <input type="number" id="atkAttr" min="1" max="20" value="5" />
     </div>
     <div class="field">
-      <label>Target's Defense</label>
+      <label id="atkDefenseLabel">Target's Defense</label>
       <input type="number" id="atkDefense" min="0" max="10" value="5" />
+    </div>
+    <div class="field">
+      <label>Klotho</label>
+      <input type="number" class="klotho" id="atkKlotho" min="0" max="10" value="0" />
     </div>
   </div>
   <div class="check-row">
@@ -406,10 +427,10 @@
   <button class="roll-btn" id="rollToHit">Roll to hit</button>
 
   <div class="section-label section-label-spaced">Damage</div>
-  <div class="row" id="dmgAttackTypeRow" style="display:none">
+  <div class="row" id="dmgAttackTypeRow">
     <div class="field">
-      <label>Attack type (fills boost sub-stat)</label>
-      <div class="elements">
+      <label>Attack type (sets the boost sub-stat)</label>
+      <div class="elements" id="dmgTypes">
         <div class="el-btn" data-substat="Ferocity">Physical</div>
         <div class="el-btn" data-substat="Presence">Social</div>
         <div class="el-btn" data-substat="Psyche">Mental</div>
@@ -428,7 +449,7 @@
   </div>
   <div class="row">
     <div class="field">
-      <label>Ki-boosted dice</label>
+      <label>Most Ki to spend</label>
       <input type="number" id="dmgBoost" min="0" max="12" value="0" />
     </div>
     <div class="field">
@@ -436,6 +457,10 @@
       <input type="number" id="dmgBoostAmt" min="0" max="10" value="0" />
     </div>
   </div>
+  <div class="check-row">
+    <label class="check"><input type="checkbox" id="dmgCrit" /> Critical hit (set by a critical to-hit)</label>
+  </div>
+  <div class="hint">Ki goes on the dice after the roll, one Ki per die, only on dice it can carry over the wall.</div>
   <button class="roll-btn" id="rollDamage">Roll damage</button>
 </div>
 
@@ -447,6 +472,9 @@
       <label>Initiative sub-stat</label>
       <input type="number" id="initSub" min="0" max="10" value="5" />
     </div>
+  </div>
+  <div class="check-row">
+    <label class="check"><input type="checkbox" id="initTwo" /> 2d10, keep the higher (Enhanced Speed 3, or Advantage on Initiative)</label>
   </div>
   <button class="roll-btn" id="rollInit">Roll initiative</button>
 </div>
@@ -474,159 +502,195 @@
 
 <script type="module">
   import OBR from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+  import { performCoreRoll, rollD10 } from "./lib/roller/core.js";
+  import { rollDamagePool, applyBoosts, worthBoosting } from "./lib/roller/damage.js";
+  import { computeFiguredCharacteristics, effectiveResourceLevel, applyVitalFloor } from "./lib/state.js";
 
   const CHANNEL = "com.feralucce.twentybelow-dice/rolls";
   let connected = false;
   let playerName = "You";
 
-  const d10 = () => Math.floor(Math.random() * 10) + 1;
-
-  function rollPair(mode) {
-    // mode: "normal" | "advantage" | "disadvantage"
-    if (mode === "normal") {
-      const dice = [d10(), d10()];
-      return { dice, kept: dice, total: dice[0] + dice[1], mode };
-    }
-    const dice = [d10(), d10(), d10()];
-    const sorted = dice.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
-    const keptIdx = mode === "advantage"
-      ? [sorted[0].i, sorted[1].i]
-      : [sorted[1].i, sorted[2].i];
-    const kept = keptIdx.map((i) => dice[i]);
-    return { dice, keptIdx, kept, total: kept[0] + kept[1], mode };
-  }
+  // The rolls themselves come from the character creator's own engine,
+  // copied into lib/ by the main repo's scripts/sync-dice.mjs - so Advantage,
+  // crit ranges, the Master reroll, the Lucky Number, the Attribute cap and
+  // critical-hit damage are the rules as the app plays them, not a copy.
+  const d10 = rollD10;
 
   const TIER_NAMES = ["Untrained", "Novice", "Trained", "Adept", "Expert", "Master"];
-  const TIER_ADV = { 3: "advantage", 4: "advantage", 5: "advantage" };
-  const TIER_DIS = { 1: "disadvantage" };
+  const OUTCOME = {
+    "critical-success": "CRITICAL SUCCESS",
+    success: "Success",
+    failure: "Failure",
+    "catastrophic-failure": "CRITICAL FAILURE",
+  };
+  const passed = (o) => o === "success" || o === "critical-success";
+
+  // An Element never counts for more than 10 in a roll (rules/costs.md,
+  // Universal Caps); the engine applies it.
+  const ATTRIBUTE_ROLL_CAP = 10;
+
+  function klothoFrom(id) {
+    const v = parseInt(document.getElementById(id).value, 10);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  function luckyNote(result) {
+    return result.luckyNumber ? " · Lucky Number! +1 Fate Token" : "";
+  }
 
   function doSkillRoll() {
     const el = document.getElementById("elements").querySelector(".el-btn.on");
     const element = el ? el.dataset.el : null;
-    const attr = clampInt("skAttr", 1, 10);
+    const attr = clampInt("skAttr", 1, 20);
     const diff = clampInt("skDiff", 0, 10);
     const tier = parseInt(document.getElementById("skTier").value, 10);
-    const extraAdv = document.getElementById("skExtraAdv").checked;
-    const extraDis = document.getElementById("skExtraDis").checked;
-
-    const advSources = (TIER_ADV[tier] ? 1 : 0) + (extraAdv ? 1 : 0);
-    const disSources = (TIER_DIS[tier] ? 1 : 0) + (extraDis ? 1 : 0);
-    let mode = "normal";
-    if (advSources > disSources) mode = "advantage";
-    else if (disSources > advSources) mode = "disadvantage";
-
-    const target = tier === 0 ? diff : attr + diff;
-    let roll = rollPair(mode);
-
-    const critSuccessVals = tier >= 4 ? [2, 3] : [2];
-    let isCritSuccess = critSuccessVals.includes(roll.total);
-    let isCritFail = roll.total === 20;
-    let masterNote = "";
-
-    if (isCritFail && tier === 5) {
-      const reroll = rollPair(mode);
-      if (reroll.total <= target) {
-        isCritFail = false;
-        masterNote = ` (Master reroll: ${reroll.total} downgrades the critical failure to a normal failure)`;
-      } else {
-        masterNote = ` (Master reroll: ${reroll.total}, critical failure stands)`;
-      }
-    }
-
-    const success = roll.total <= target;
-    const headline = `${roll.total} vs ${target} — ${isCritSuccess ? "CRITICAL SUCCESS" : isCritFail ? "CRITICAL FAILURE" : success ? "Success" : "Failure"}`;
-    const diceHtml = renderDice(roll);
-    const elLabel = element ? `${element} · ` : "";
-    const summary = `${elLabel}${TIER_NAMES[tier]} · Attr ${attr} + Diff ${diff} = ${target}${mode !== "normal" ? ` · ${mode}` : ""}`;
-
-    showResult(headline, success && !isCritFail, diceHtml, summary + masterNote);
-    broadcastRoll({
-      kind: "Skill Roll",
-      headline,
-      summary: summary + masterNote,
-      success: success && !isCritFail,
+    const result = performCoreRoll({
+      attribute: attr,
+      difficulty: diff,
+      skillTier: tier,
+      extraAdvantage: document.getElementById("skExtraAdv").checked ? 1 : 0,
+      extraDisadvantage: document.getElementById("skExtraDis").checked ? 1 : 0,
+      klotho: klothoFrom("skKlotho"),
+      attributeRollCap: ATTRIBUTE_ROLL_CAP,
     });
+
+    let masterNote = "";
+    if (result.reroll) {
+      masterNote = result.outcome === "failure"
+        ? ` (Master reroll: ${result.reroll.sum} downgrades the critical failure to a normal failure)`
+        : ` (Master reroll: ${result.reroll.sum}, critical failure stands)`;
+    }
+    const success = passed(result.outcome);
+    const headline = `${result.roll.sum} vs ${result.target} — ${OUTCOME[result.outcome]}`;
+    const elLabel = element ? `${element} · ` : "";
+    const shown = tier === 0 ? `Diff ${diff}` : `Attr ${Math.min(attr, ATTRIBUTE_ROLL_CAP)} + Diff ${diff}`;
+    const summary = `${elLabel}${TIER_NAMES[tier]} · ${shown} = ${result.target}${result.mode !== "normal" ? ` · ${result.mode}` : ""}${masterNote}${luckyNote(result)}`;
+
+    showResult(headline, success, renderDice(result), summary);
+    broadcastRoll({ kind: "Skill Roll", headline, summary, success });
   }
 
-  // To-Hit: a plain Attribute-vs-Defense roll, no Skill involved - fixed at
-  // Trained-equivalent (uses the Attribute, no auto Advantage/Disadvantage,
-  // no widened crit range, no Master reroll), matching how the main app's
-  // Attack Roll always resolves regardless of any Skill Tier.
+  // The three kinds of attack (rules.md, Choosing the Attacking Element):
+  // which Elements may carry it, and which Defense it rolls against.
+  const ATTACK_KINDS = {
+    Physical: { defense: "Defense", moira: false, substat: "Ferocity",
+      note: "A weapon, a fist, a thrown brick. Dice from the weapon, against Soak." },
+    Social: { defense: "Social Defense", moira: true, substat: "Presence",
+      note: "Words as a weapon. Dice are your Skill's Tier + 1, against Presence. Moira can carry it." },
+    Mental: { defense: "Mental Defense", moira: true, substat: "Psyche",
+      note: "Only a Gift or a creature makes one. Dice from the Gift, against Psyche." },
+  };
+  let attackKind = "Physical";
+
+  function setAttackKind(kind) {
+    attackKind = kind;
+    const info = ATTACK_KINDS[kind];
+    document.querySelectorAll("#atkKinds .el-btn").forEach((b) => b.classList.toggle("on", b.dataset.kind === kind));
+    document.getElementById("atkKindNote").textContent = info.note;
+    document.getElementById("atkDefenseLabel").textContent = `Target's ${info.defense}`;
+    const moira = document.getElementById("atkMoira");
+    moira.style.display = info.moira ? "" : "none";
+    if (!info.moira) moira.classList.remove("on");
+    // The damage below follows the attack: its boost sub-stat is the kind's.
+    document.querySelectorAll("#dmgTypes .el-btn").forEach((b) => b.classList.toggle("on", b.dataset.substat === info.substat));
+    if (loadedCharacter) {
+      const v = loadedCharacter.subStats && loadedCharacter.subStats[info.substat];
+      if (v != null) document.getElementById("dmgBoostAmt").value = v;
+    }
+  }
+
+  // To-Hit: an Element against the target's Defense, no Skill involved -
+  // the engine's Trained tier, which is exactly "use the Attribute, no
+  // automatic Advantage, no widened crit, no Master reroll".
   function doToHitRoll() {
     const el = document.getElementById("atkElements").querySelector(".el-btn.on");
     const element = el ? el.dataset.attr : null;
-    const attr = clampInt("atkAttr", 1, 10);
+    const attr = clampInt("atkAttr", 1, 20);
     const defense = clampInt("atkDefense", 0, 10);
-    const extraAdv = document.getElementById("atkExtraAdv").checked;
-    const extraDis = document.getElementById("atkExtraDis").checked;
+    const result = performCoreRoll({
+      attribute: attr,
+      difficulty: defense,
+      skillTier: 2,
+      extraAdvantage: document.getElementById("atkExtraAdv").checked ? 1 : 0,
+      extraDisadvantage: document.getElementById("atkExtraDis").checked ? 1 : 0,
+      klotho: klothoFrom("atkKlotho"),
+      attributeRollCap: ATTRIBUTE_ROLL_CAP,
+    });
+    const hit = passed(result.outcome);
+    const crit = result.outcome === "critical-success";
+    // A critical arms the damage roll below, and a plain hit disarms it.
+    document.getElementById("dmgCrit").checked = crit;
 
-    let mode = "normal";
-    if (extraAdv && !extraDis) mode = "advantage";
-    else if (extraDis && !extraAdv) mode = "disadvantage";
-
-    const target = attr + defense;
-    const roll = rollPair(mode);
-    const isCritSuccess = roll.total <= 2;
-    const isCritFail = roll.total === 20;
-    const success = roll.total <= target;
-    const hit = (success || isCritSuccess) && !isCritFail;
-
-    const headline = `${roll.total} vs ${target} — ${isCritSuccess ? "CRITICAL SUCCESS" : isCritFail ? "CRITICAL FAILURE" : success ? "Success" : "Failure"}${hit ? " (connects)" : " (misses)"}`;
-    const diceHtml = renderDice(roll);
+    const info = ATTACK_KINDS[attackKind];
+    const headline = `${result.roll.sum} vs ${result.target} — ${OUTCOME[result.outcome]}${hit ? " (connects)" : " (misses)"}`;
     const elLabel = element ? `${element} · ` : "";
-    const summary = `${elLabel}Attr ${attr} vs Defense ${defense} = ${target}${mode !== "normal" ? ` · ${mode}` : ""}`;
+    const summary = `${attackKind} · ${elLabel}Attr ${Math.min(attr, ATTRIBUTE_ROLL_CAP)} vs ${info.defense} ${defense} = ${result.target}${result.mode !== "normal" ? ` · ${result.mode}` : ""}${crit ? " · critical: damage is set" : ""}${luckyNote(result)}`;
 
-    showResult(headline, hit, diceHtml, summary);
-    broadcastRoll({ kind: "To-Hit Roll", headline, summary, success: hit });
+    showResult(headline, hit, renderDice(result), summary);
+    broadcastRoll({ kind: `${attackKind} To-Hit`, headline, summary, success: hit });
   }
 
+  // Damage: the engine rolls the pool (a critical puts half the dice through
+  // free and adds Klotho to the rest). Ki Infusion is chosen after the roll,
+  // so the Ki goes on the dice it can actually carry over the wall, up to
+  // the most the player said they will spend.
   function doDamageRoll() {
     const n = clampInt("dmgDice", 1, 12);
     const wall = clampInt("dmgWall", 0, 10);
-    const boost = clampInt("dmgBoost", 0, 12);
+    const maxKi = clampInt("dmgBoost", 0, 12);
     const boostAmt = clampInt("dmgBoostAmt", 0, 10);
+    const critical = document.getElementById("dmgCrit").checked;
+    const klotho = klothoFrom("atkKlotho") || 0;
 
-    const dice = [];
-    let connects = 0;
-    for (let i = 0; i < n; i++) {
-      const raw = d10();
-      const boosted = i < boost;
-      const effective = boosted ? raw + boostAmt : raw;
-      const connect = effective > wall;
-      if (connect) connects++;
-      dice.push({ raw, effective, boosted, connect });
-    }
+    const pool = rollDamagePool({ diceCount: n, wall, critical, klotho });
+    const worth = worthBoosting(pool, boostAmt).slice(0, maxKi);
+    const done = applyBoosts(pool, worth, boostAmt);
 
+    const connects = done.connectCount;
     const headline = `${connects} of ${n} connect${connects === 1 ? "" : "s"} — ${connects} Level${connects === 1 ? "" : "s"}`;
-    const diceHtml = dice.map((d) => {
-      const label = d.boosted ? `${d.raw}+${boostAmt}=${d.effective}` : `${d.raw}`;
-      return `<span class="die ${d.connect ? "connect" : "absorb"}">${label}</span>`;
+    const diceHtml = done.dice.map((d) => {
+      const label = d.fated ? `${d.raw}✦` : d.boosted ? `${d.result - boostAmt}+${boostAmt}=${d.result}` : `${d.result}`;
+      return `<span class="die ${d.connects ? "connect" : "absorb"}">${label}</span>`;
     }).join("");
-    const summary = `${n}d10 vs wall ${wall}${boost > 0 ? ` · ${boost} boosted (+${boostAmt})` : ""}`;
+    const bits = [`${n}d10 vs wall ${wall}`];
+    if (critical) bits.push(`critical: ${done.freeDice} through free (✦), +${klotho} Klotho on the rest`);
+    if (worth.length) bits.push(`${worth.length} Ki spent (+${boostAmt} each)`);
+    else if (maxKi) bits.push("no die worth a Ki");
+    const summary = bits.join(" · ");
 
     showResult(headline, connects > 0, diceHtml, summary);
     broadcastRoll({ kind: "Damage Roll", headline, summary, success: connects > 0 });
+    // A critical is spent on the damage it set up.
+    document.getElementById("dmgCrit").checked = false;
   }
 
   function doInitRoll() {
     const sub = clampInt("initSub", 0, 10);
-    const raw = d10();
-    const total = raw + sub;
+    const two = document.getElementById("initTwo").checked;
+    const dice = two ? [d10(), d10()] : [d10()];
+    const kept = Math.max(...dice);
+    const total = kept + sub;
     const headline = `Initiative: ${total}`;
-    const diceHtml = `<span class="die kept">${raw}</span> + ${sub}`;
-    const summary = `1d10 (${raw}) + ${sub}`;
+    const diceHtml = dice.map((v) => `<span class="die ${v === kept ? "kept" : ""}">${v}</span>`).join(" ") + ` + ${sub}`;
+    const summary = two ? `2d10 keep the higher (${kept}) + ${sub}` : `1d10 (${kept}) + ${sub}`;
     showResult(headline, true, diceHtml, summary);
     broadcastRoll({ kind: "Initiative", headline, summary, success: true });
   }
 
-  function renderDice(roll) {
-    if (roll.mode === "normal") {
+  // The kept two are shown bright; with Advantage or Disadvantage the third
+  // die is shown dim.
+  function renderDice(result) {
+    const { roll, mode } = result;
+    if (mode === "normal") {
       return roll.dice.map((v) => `<span class="die kept">${v}</span>`).join("");
     }
-    return roll.dice.map((v, i) => {
-      const kept = roll.keptIdx.includes(i);
+    const left = [...roll.kept];
+    return roll.dice.map((v) => {
+      const i = left.indexOf(v);
+      const kept = i !== -1;
+      if (kept) left.splice(i, 1);
       return `<span class="die ${kept ? "kept" : ""}">${v}</span>`;
-    }).join(" ") + ` <span style="color:var(--text-faint)">(${roll.mode}, kept ${roll.kept.join("+")})</span>`;
+    }).join(" ") + ` <span style="color:var(--text-faint)">(${mode}, kept ${roll.kept.join("+")})</span>`;
   }
 
   function clampInt(id, lo, hi) {
@@ -693,6 +757,8 @@
 
   // Element toggle (single-select within each .elements group)
   document.querySelectorAll(".elements").forEach((group) => {
+    // The kind of attack is always one of three, never none - its own handler.
+    if (group.id === "atkKinds") return;
     group.querySelectorAll(".el-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const wasOn = btn.classList.contains("on");
@@ -723,10 +789,14 @@
   function refreshCharacterLinks() {
     const has = !!loadedCharacter;
     document.getElementById("skSkillRow").style.display = has ? "" : "none";
-    document.getElementById("dmgAttackTypeRow").style.display = has ? "" : "none";
     document.getElementById("initFillBtn").style.display = has ? "" : "none";
     document.getElementById("charLinkedBar").style.display = has ? "" : "none";
     if (has) document.getElementById("charLinkedName").textContent = loadedCharacter.name || "Unnamed";
+    // Klotho is the Lucky Number every core roll checks.
+    if (has) {
+      const k = loadedCharacter.subStats && loadedCharacter.subStats.Klotho;
+      if (k != null) document.querySelectorAll(".klotho").forEach((input) => { input.value = k; });
+    }
 
     const sel = document.getElementById("skSkillSelect");
     sel.innerHTML = '<option value="">— manual —</option>';
@@ -746,26 +816,8 @@
     }
   }
 
-  function computeFiguredCharacteristics(state) {
-    const s = state.subStats || {};
-    const ki = (((s.Soak || 0) + (s.Initiative || 0) + (s.Ferocity || 0) + (s.Stamina || 0) + (s.Atropos || 0)) / 5) * 2;
-    return {
-      "Health Levels": 5 + (s.Health || 0),
-      Poise: 5 + (s.Presence || 0),
-      Sanity: 5 + (s.Psyche || 0),
-      Defense: 10 - (s.Atropos || 0),
-      "Movement Rate": 5 + ((state.attributes && state.attributes.Air) || 0),
-      "Carrying Capacity": Math.pow(s.Potence || 0, 2) * 10,
-      Ki: Math.ceil(ki),
-    };
-  }
-
-  function effectiveResourceLevel(state, name) {
-    if (state.resourceZeroed && state.resourceZeroed[name]) return 0;
-    const level = (state.resources && state.resources[name]) ?? 0;
-    const penalty = (state.resourcePenalties && state.resourcePenalties[name]) ?? 0;
-    return Math.max(Math.min(level, 1), level - penalty);
-  }
+  // computeFiguredCharacteristics and effectiveResourceLevel come from lib/state.js,
+  // the creator's own - the copies that used to live here had fallen behind it.
 
   const ATTR_SUBS = {
     Earth: ["Soak", "Potence"],
@@ -776,7 +828,10 @@
   };
 
   function renderCharacter(state) {
-    const figured = computeFiguredCharacteristics(state);
+    // "Figured Ki" is the creator's bookkeeping for the Ki it was built with,
+    // not a stat to show.
+    const figured = Object.fromEntries(Object.entries(computeFiguredCharacteristics(state))
+      .filter(([k]) => k !== "Figured Ki"));
     const natureLabel = state.nature && state.nature.custom
       ? state.nature.custom.label
       : (state.nature && state.nature.picked) || null;
@@ -994,15 +1049,22 @@
     const dir = parseInt(btn.dataset.dir, 10);
     const figured = computeFiguredCharacteristics(loadedCharacter);
     const c = loadedCharacter;
+    // Each Vital runs as far below 0 as above it; Poise and Sanity reset
+    // at the bottom, the Poise floor costing a Sanity Level (the creator's
+    // applyVitalFloor).
+    const clampV = (v, max) => Math.max(-max, Math.min(max, v));
     switch (btn.dataset.track) {
       case "health":
-        c.currentHealth = Math.min(figured["Health Levels"], (c.currentHealth ?? figured["Health Levels"]) + dir);
+        c.currentHealth = clampV((c.currentHealth ?? figured["Health Levels"]) + dir, figured["Health Levels"]);
         break;
       case "poise":
-        c.currentPoise = Math.min(figured.Poise, (c.currentPoise ?? figured.Poise) + dir);
+        c.currentPoise = clampV((c.currentPoise ?? figured.Poise) + dir, figured.Poise);
+        c.currentSanity = c.currentSanity ?? figured.Sanity;
+        applyVitalFloor(c, "Poise", figured.Poise, figured);
         break;
       case "sanity":
-        c.currentSanity = Math.min(figured.Sanity, (c.currentSanity ?? figured.Sanity) + dir);
+        c.currentSanity = clampV((c.currentSanity ?? figured.Sanity) + dir, figured.Sanity);
+        applyVitalFloor(c, "Sanity", figured.Sanity, figured);
         break;
       case "ki":
         c.currentKi = Math.max(0, Math.min(figured.Ki, (c.currentKi ?? figured.Ki) + dir));
@@ -1012,6 +1074,10 @@
         break;
       default:
         return;
+    }
+    if (c.floorNote) {
+      alert(c.floorNote);
+      delete c.floorNote;
     }
     saveLoadedCharacter();
     renderCharacter(c);
@@ -1032,6 +1098,11 @@
     const saved = localStorage.getItem(CHAR_STORAGE_KEY);
     if (saved) loadCharacterJson(saved);
   } catch (e) {}
+
+  document.querySelectorAll("#atkKinds .el-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setAttackKind(btn.dataset.kind));
+  });
+  setAttackKind("Physical");
 
   document.getElementById("rollSkill").addEventListener("click", doSkillRoll);
   document.getElementById("rollToHit").addEventListener("click", doToHitRoll);
