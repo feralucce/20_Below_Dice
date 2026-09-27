@@ -36,6 +36,8 @@ import {
   sheetActions,
 } from './lib/sheet/sheet-model.js';
 import { giftInfoPanel, movementPanel, rollDicePanel } from './lib/sheet/panels.js';
+import { buildGiftCheckSection } from './lib/steps/roller-panel.js';
+import buildAdvancementTab from './lib/steps/tab-advancement.js';
 
 // Kept from the dice extension, so a character already loaded there, and
 // the room's roll log, carry straight over.
@@ -281,6 +283,7 @@ const TABS = [
   ['gifts', 'Gifts'],
   ['gear', 'Gear'],
   ['notes', 'Notes'],
+  ['advance', 'Advance'],
   ['log', 'Log'],
 ];
 
@@ -333,7 +336,8 @@ function drawBody() {
   const act = sheetActions(state, data, ctx.figured, (t) => say(t));
   const set = (fn) => () => { fn(); store(); draw(); };
   const view = {
-    vitals: vitalsTab, skills: skillsTab, gifts: giftsTab, gear: gearTab, notes: notesTab, log: logBlock,
+    vitals: vitalsTab, skills: skillsTab, gifts: giftsTab, gear: gearTab, notes: notesTab,
+    advance: advanceTab, log: logBlock,
   }[tab] || vitalsTab;
   body.append(...[].concat(view(ctx, act, set)));
 }
@@ -458,9 +462,23 @@ function skillsTab(ctx) {
   ];
 }
 
-function giftsTab(ctx) {
+function giftsTab(ctx, act, set) {
   if (!ctx.gifts.length) return [block('Gifts', el('p', { class: 'hint' }, 'No Gifts.'))];
-  return ctx.gifts.map((g) => {
+  // Ki is what Gifts run on, so it is ticked here as well as on Vitals.
+  // A failed Gift Check takes its Ki at once; the count follows without
+  // redrawing the tab, so the Check's result stays on screen.
+  const kiRow = stepper(act, set, 'pool.ki', state.currentKi, ctx.figured.Ki);
+  const showKi = () => {
+    kiRow.querySelector('.count').textContent = `${state.currentKi} / ${ctx.figured.Ki}`;
+  };
+  const check = buildGiftCheckSection(state, data, () => { store(); showKi(); }, {
+    onRolled: (entry) => { store(); showKi(); rolled(entry); },
+  });
+  const top = block('Ki and Gift Check', [
+    el('div', { class: 'pool' }, [el('span', { class: 'pool-name' }, 'Ki'), kiRow]),
+    el('div', { class: 'gift-check' }, [].concat(check)),
+  ]);
+  return [top, ...ctx.gifts.map((g) => {
     const adders = adderLabels(g.adders).map((l) => optionWithChoice(g, l, l.replace(/ ×\d+$/, '')));
     const limiters = (g.limiters || []).map((l) => optionWithChoice(g, l));
     const ki = ctx.giftKi(g);
@@ -479,7 +497,7 @@ function giftsTab(ctx) {
       limiters.length ? el('p', { class: 'gift-opts' }, [el('strong', {}, 'Limiters: '), limiters.join(', ')]) : null,
       el('span', { class: 'gift-more' }, 'What it does →'),
     ].filter(Boolean));
-  });
+  })];
 }
 
 function gearTab(ctx, act, set) {
@@ -537,8 +555,6 @@ function notesTab(ctx) {
       onInput: (e) => { state[key] = e.target.value; store(); },
     }, state[key] || ''),
   ]);
-  const earned = Number(state.xpEarned) || 0;
-  const spentXp = xpSpent(state, data);
   return [
     block('Nature', nature ? [
       el('p', {}, [el('strong', {}, nature)]),
@@ -548,13 +564,54 @@ function notesTab(ctx) {
     ].filter(Boolean) : el('p', { class: 'hint' }, 'No Nature.')),
     block('Descriptors', descriptors.length ? descriptors : el('p', { class: 'hint' }, 'No Descriptors.')),
     block('Scars', scars.length ? scars : el('p', { class: 'hint' }, 'No scars.')),
-    block('Experience', el('div', { class: 'figures' }, [
-      el('div', { class: 'figure' }, [el('span', {}, 'Earned'), el('strong', {}, `${earned}`)]),
-      el('div', { class: 'figure' }, [el('span', {}, 'Spent'), el('strong', {}, `${spentXp}`)]),
-      el('div', { class: 'figure' }, [el('span', {}, 'Unspent'), el('strong', {}, `${earned - spentXp}`)]),
-    ])),
     block(null, [text('Backstory', 'backstory'), text('Notes', 'finishingNotes')]),
   ];
+}
+
+// Experience, earned and spent in the sheet: the GM awards XP at the
+// table, the player adds it here, and spends it with the Creator's own
+// Advancement sections - no trip to the Creator and back. Every change
+// saves at once; Save puts it in the file for next session.
+function advanceTab() {
+  const earned = Number(state.xpEarned) || 0;
+  const spentXp = xpSpent(state, data);
+  const amount = el('input', { type: 'number', step: '1', class: 'xp-input', placeholder: 'XP' });
+  const add = () => {
+    const n = Math.round(Number(amount.value));
+    if (!Number.isFinite(n) || !n) return;
+    state.xpEarned = Math.max(0, earned + n);
+    say(n > 0 ? `Added ${n} XP.` : `Took off ${-n} XP.`);
+    keepScroll(() => { store(); draw(); });
+  };
+  amount.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+  const refresh = () => keepScroll(() => { store(); draw(); });
+  return [
+    block('Experience', [
+      el('div', { class: 'figures' }, [
+        el('div', { class: 'figure' }, [el('span', {}, 'Earned'), el('strong', {}, `${earned}`)]),
+        el('div', { class: 'figure' }, [el('span', {}, 'Spent'), el('strong', {}, `${spentXp}`)]),
+        el('div', { class: 'figure' }, [el('span', {}, 'Unspent'), el('strong', {}, `${earned - spentXp}`)]),
+      ]),
+      el('div', { class: 'xp-add' }, [
+        el('span', {}, 'XP from this session'),
+        amount,
+        el('button', { type: 'button', class: 'btn btn-main', text: 'Add', onClick: add }),
+      ]),
+      el('p', { class: 'hint' }, 'A mistake? Add it as a minus number.'),
+    ]),
+    block('Spend XP', [
+      el('p', { class: 'hint' }, 'Open a section to raise what you want. It saves as you go; Save puts it in your file.'),
+      el('div', { class: 'advance' }, buildAdvancementTab(state, data, refresh, { xpField: false })),
+    ]),
+  ];
+}
+
+// Redraws without jumping back to the top of the tab.
+function keepScroll(fn) {
+  const scroller = document.scrollingElement || document.documentElement;
+  const y = scroller.scrollTop;
+  fn();
+  scroller.scrollTop = y;
 }
 
 function logBlock() {

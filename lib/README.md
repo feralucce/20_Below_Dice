@@ -15,4 +15,7 @@ there and re-run the sync; anything changed here is overwritten.
 | `steps/roller-panel.js` | `app/steps/roller-panel.js` |
 | `sheet/sheet-model.js` | `app/sheet/sheet-model.js` |
 | `sheet/panels.js` | `app/sheet/panels.js` |
+| `steps/tab-advancement.js` | `app/steps/tab-advancement.js` |
+| `steps/07-boons.js` | `app/steps/07-boons.js` |
+| `describe-spec.js` | `app/describe-spec.js` |
 | `marked.min.js` | `vendor/marked.min.js` |

@@ -224,6 +224,47 @@ select { padding: 0.2rem 0.3rem; font-size: 0.82rem; }
 .gift-info-text table { border-collapse: collapse; font-size: 0.8rem; }
 .gift-info-text td, .gift-info-text th { border: 1px solid var(--panel-border); padding: 0.15rem 0.35rem; }
 
+/* Gifts: Ki and the Gift Check lead the tab. */
+.gift-check { margin-top: 0.5rem; }
+
+/* Advance: adding a session's XP, then the Creator's own spending
+   sections, dressed to match the sheet. */
+.xp-add { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.6rem; font-size: 0.9rem; color: var(--text-dim); }
+.xp-input { width: 5rem; background: var(--panel-2); color: var(--text); border: 1px solid var(--panel-border);
+  border-radius: var(--radius); padding: 0.3rem 0.45rem; font: inherit; }
+.advance h2 { display: none; }
+.advance .pick-card { border: 1px solid var(--panel-border); border-radius: var(--radius); padding: 0.6rem 0.7rem;
+  background: var(--panel); margin-bottom: 0.5rem; }
+.advance .pick-card.purchased { border-left: 3px solid var(--ok); }
+.advance .pick-card summary { cursor: pointer; display: flex; justify-content: space-between; gap: 0.5rem; font-weight: 600; }
+.advance details > summary::before { content: '▸ '; color: var(--accent); margin-right: 0.1rem; }
+.advance details[open] > summary::before { content: '▾ '; }
+.advance .pick-card summary { justify-content: flex-start; }
+.advance .pick-card .cost { color: var(--accent); white-space: nowrap; }
+.advance .pick-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.advance .pick-list .pick-card:nth-child(even) { background: var(--bg); }
+.advance .detail { margin: 0.4rem 0; color: var(--text-dim); font-size: 0.85rem; }
+.advance .detail table { border-collapse: collapse; width: 100%; margin: 0.4rem 0; }
+.advance .detail th, .advance .detail td { border: 1px solid var(--panel-border); padding: 0.3rem 0.45rem; text-align: left; font-size: 0.8rem; }
+.advance .field-label { display: block; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin: 0.5rem 0 0.25rem; }
+.advance input[type="text"], .advance input:not([type]) { width: 100%; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--panel-border); border-radius: var(--radius); padding: 0.35rem 0.5rem; font: inherit; }
+.advance button { font: inherit; font-size: 0.85rem; background: var(--panel-2); color: var(--text); border: 1px solid var(--panel-border);
+  border-radius: var(--radius); padding: 0.25rem 0.6rem; cursor: pointer; margin: 0.15rem 0.3rem 0.15rem 0; }
+.advance button:disabled { opacity: 0.4; cursor: not-allowed; }
+.advance .counter-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.2rem; border-bottom: 1px solid var(--panel-border); }
+.advance .counter-row .name { flex: 1; }
+.advance .counter-row .value { min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.advance .counter-row button { border-radius: 999px; width: 1.7rem; height: 1.7rem; padding: 0; margin: 0; line-height: 1; }
+.advance .counter-row-compact .name { flex: none; }
+.advance .purchased-pill { margin-left: 0.5rem; padding: 0.05rem 0.45rem; border: 1px solid var(--ok); border-radius: var(--radius); color: var(--ok); font-size: 11px; white-space: nowrap; }
+.advance .describe-box { display: block; width: 100%; margin: 0.4rem 0 0; padding: 0.35rem 0.5rem; border: 1px dashed var(--panel-border);
+  border-radius: var(--radius); background: transparent; color: inherit; font: inherit; font-size: 0.95em; }
+.advance .describe-box:not(:placeholder-shown), .advance .describe-box:focus { border-style: solid; outline: none; }
+.advance select.describe-box { color-scheme: dark; background-color: var(--panel); }
+.advance .describe-list > .describe-box + .describe-box { margin-top: 0.3rem; }
+.advance .muted { color: var(--text-faint); }
+
 @media (max-width: 460px) {
   .elements { grid-template-columns: repeat(3, 1fr); }
   .top { flex-direction: column; }
