@@ -5,7 +5,7 @@
   "author": "Feralucce",
   "homepage_url": "https://github.com/feralucce/20_Below_Dice",
   "icon": "https://feralucce.github.io/20_Below_Dice/icon.svg",
-  "description": "Your 20 Below character in Owlbear Rodeo: every number on the sheet, Vitals, Ki and Fate that track themselves, and one Roll dice window whose rolls the whole room sees.",
+  "description": "Your 20 Below character at the table: the full sheet, self-tracking Vitals, Ki and Fate, and dice rolls the whole room sees.",
   "action": {
     "title": "20 Below Character Sheet",
     "icon": "https://feralucce.github.io/20_Below_Dice/icon.svg",
