@@ -41,12 +41,19 @@ import { giftInfoPanel, movementPanel, rollDicePanel } from './lib/sheet/panels.
 // the room's roll log, carry straight over.
 const CHANNEL = 'com.feralucce.twentybelow-dice/rolls';
 const STORAGE_KEY = 'twentybelow-dice.character';
+// The GM's Battle Tracker talks to the sheets on its own channel: a rest
+// or Fate Tokens sent to one player or to everyone, and each sheet's
+// answer. Each sheet names its character in its player's metadata, so the
+// tracker can list who is at the table.
+const GM_CHANNEL = 'com.feralucce.twentybelow-dice/gm';
+const CHARACTER_KEY = 'com.feralucce.twentybelow-dice/character';
 const TAB_KEY = 'twentybelow-sheet.tab';
 
 let data = null;
 let state = null;
 let connected = false;
 let playerName = 'You';
+let connectionId = null;
 let tab = 'vitals';
 const log = [];
 
@@ -101,6 +108,7 @@ function loadText(raw, { announce = true } = {}) {
     return;
   }
   store();
+  announceCharacter();
   if (announce && state.migrationNotices?.length) {
     say(`Some things on this character changed with the rules: ${state.migrationNotices.join(' ')}`);
   }
@@ -170,6 +178,65 @@ async function rolled(entry) {
   }
 }
 
+// Tells the room which character this player has open, for the GM's list.
+async function announceCharacter() {
+  if (!connected) return;
+  try {
+    await OBR.player.setMetadata({ [CHARACTER_KEY]: state ? { name: state.name || 'Unnamed character' } : null });
+  } catch (err) {
+    console.error('20 Below Character Sheet: could not name the character to the room', err);
+  }
+}
+
+// The GM gives a Short Rest, a Full Night's Rest or Fate Tokens. It lands
+// at once. The GM can give as many Short Rests as the story allows - the
+// one-between-nights limit is only on the player's own button - but Tokens
+// still stop at the holding cap. The GM hears back what happened.
+async function fromGM(msg) {
+  if (!msg || msg.type === 'result') return;
+  if (msg.to && msg.to !== connectionId) return;
+  if (!state) {
+    answerGM(`${playerName} has no character loaded, so nothing changed.`, false);
+    return;
+  }
+  const notes = [];
+  const act = sheetActions(state, data, sheetContext(state, data).figured, (t) => notes.push(t));
+  let text;
+  let ok = true;
+  if (msg.type === 'rest') {
+    const label = msg.full ? "a Full Night's Rest" : 'a Short Rest';
+    if (!msg.full) state.shortRestTaken = false;
+    ok = act.rest(!!msg.full);
+    text = ok ? `The GM gave you ${label}.` : `The GM gave you ${label}, but it didn't apply.`;
+  } else if (msg.type === 'fate') {
+    const cap = fateTokenCap(state, data);
+    const before = state.currentFateTokens ?? 0;
+    const by = Math.max(1, Math.round(Number(msg.amount) || 1));
+    state.currentFateTokens = Math.min(cap, before + by);
+    const got = state.currentFateTokens - before;
+    ok = got > 0;
+    text = got === by
+      ? `The GM gave you ${by} Fate Token${by === 1 ? '' : 's'}.`
+      : `The GM gave you ${by} Fate Token${by === 1 ? '' : 's'}; you kept ${got}, the most you can hold is ${cap}.`;
+  } else {
+    return;
+  }
+  const full = [text, ...notes].join(' ');
+  store();
+  draw();
+  say(full, !ok);
+  addLog({ name: 'GM', kind: msg.type === 'rest' ? 'Rest' : 'Fate Tokens', headline: full, success: ok });
+  answerGM(`${state.name || playerName}: ${full.replace(/^The GM gave you/, 'got')}`, ok);
+}
+
+async function answerGM(text, ok) {
+  try {
+    await OBR.broadcast.sendMessage(GM_CHANNEL, { type: 'result', text, ok }, { destination: 'REMOTE' });
+  } catch (err) {
+    console.error('20 Below Character Sheet: could not answer the GM', err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // the window over the sheet
 // ---------------------------------------------------------------------------
@@ -200,6 +267,7 @@ function openRoller() {
     // popover mid-window cannot lose it.
     onKi: () => store(),
     onRolled: (entry) => { store(); rolled(entry); },
+    initiativeSent: connected ? "It's sent to the room, and the GM's Battle Tracker fills it in." : null,
   }));
 }
 
@@ -528,7 +596,10 @@ async function start() {
       $('conn').classList.add('on');
       $('conn').title = 'Connected to the room';
       try { playerName = await OBR.player.getName(); } catch { playerName = 'You'; }
+      try { connectionId = await OBR.player.getConnectionId(); } catch { connectionId = null; }
       OBR.broadcast.onMessage(CHANNEL, (event) => addLog(event.data));
+      OBR.broadcast.onMessage(GM_CHANNEL, (event) => fromGM(event.data));
+      announceCharacter();
       if (tab === 'log') drawBody();
     });
   } catch (err) {
