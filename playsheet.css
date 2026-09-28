@@ -36,6 +36,11 @@ p { margin: 0.25rem 0; line-height: 1.4; }
 
 /* --- header ------------------------------------------------------------ */
 .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem; }
+.who-block { flex: 1; min-width: 0; }
+/* The character's portrait, from the file (set in the Creator). */
+.portrait { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: none;
+  border: 2px solid var(--panel-border); background: var(--panel); }
+.portrait[hidden] { display: none; }
 .who { display: flex; align-items: center; gap: 0.4rem; font-weight: 700; font-size: 1.1rem; }
 .concept { color: var(--text-dim); font-size: 0.78rem; margin-top: 0.1rem; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex: none; }

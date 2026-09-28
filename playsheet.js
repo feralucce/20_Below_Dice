@@ -24,6 +24,7 @@ import {
   skillTierName,
   fateTokenCap,
   xpSpent,
+  portraitOf,
 } from './lib/state.js';
 import {
   SKILL_ELEMENT_COLOURS,
@@ -299,6 +300,11 @@ const EXHAUSTED = [
 function draw() {
   $('who').textContent = state ? state.name || 'Unnamed character' : '20 Below Character Sheet';
   $('concept').textContent = state?.concept || '';
+  // The portrait travels in the character file (set in the Creator).
+  const portrait = portraitOf(state);
+  $('portrait').hidden = !portrait;
+  if (portrait) $('portrait').src = portrait;
+  else $('portrait').removeAttribute('src');
   $('btn-roll').disabled = !state;
   $('btn-save').disabled = !state;
   const bar = $('tabs');
