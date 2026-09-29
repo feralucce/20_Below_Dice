@@ -39,6 +39,7 @@ import {
 import { giftInfoPanel, movementPanel, rollDicePanel } from './lib/sheet/panels.js';
 import { buildGiftCheckSection } from './lib/steps/roller-panel.js';
 import buildAdvancementTab from './lib/steps/tab-advancement.js';
+import { addBugReportButton } from './lib/bug-report.js';
 
 // Kept from the dice extension, so a character already loaded there, and
 // the room's roll log, carry straight over.
@@ -637,6 +638,7 @@ async function start() {
   $('btn-roll').addEventListener('click', openRoller);
   $('btn-load').addEventListener('click', pickFile);
   $('btn-save').addEventListener('click', saveFile);
+  addBugReportButton(document.querySelector('.top .actions'), { app: 'Owlbear Character Sheet', label: 'Report bug' });
   try { tab = localStorage.getItem(TAB_KEY) || tab; } catch { /* default tab */ }
 
   try {

@@ -18,4 +18,5 @@ there and re-run the sync; anything changed here is overwritten.
 | `steps/tab-advancement.js` | `app/steps/tab-advancement.js` |
 | `steps/07-boons.js` | `app/steps/07-boons.js` |
 | `describe-spec.js` | `app/describe-spec.js` |
+| `bug-report.js` | `app/bug-report.js` |
 | `marked.min.js` | `vendor/marked.min.js` |
