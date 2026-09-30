@@ -426,13 +426,20 @@ function vitalsTab(ctx, act, set) {
         stepper(act, set, 'pool.ki', state.currentKi, figured.Ki)]),
       el('div', { class: 'pool' }, [el('span', { class: 'pool-name' }, 'Fate Tokens'),
         stepper(act, set, 'pool.fate', state.currentFateTokens, fateTokenCap(state, data),
-          `spent this Scene ${spent} of ${stamina}`)]),
+          `counted this Scene ${spent} of ${stamina + 1}`)]),
       el('div', { class: 'pool' }, [el('span', { class: exhausted ? 'pool-name exhausted' : 'pool-name' }, 'Exhausted'),
         stepper(act, set, 'exhausted', exhausted, 5, EXHAUSTED.slice(1, exhausted + 1).join('; '))]),
     ]),
     el('div', { class: 'rests' }, [
       el('button', { type: 'button', class: 'btn', text: 'Short rest', onClick: () => { if (act.rest(false)) { store(); draw(); } } }),
       el('button', { type: 'button', class: 'btn', text: "Full night's rest", onClick: () => { if (act.rest(true)) { store(); draw(); } } }),
+      // The - spends a Token freely; only a Kotodama or a burned level of
+      // Corruption counts against Stamina + 1 (fate.md), so it's counted here.
+      el('button', {
+        type: 'button', class: 'btn btn-scene', text: 'Count a spend',
+        title: 'A Kotodama, a share of a pooled one, or a level of Corruption burned',
+        onClick: set(() => act.countSpend()),
+      }),
       el('button', { type: 'button', class: 'btn btn-scene', text: 'New Scene', onClick: set(() => act.newScene()) }),
     ]),
   ];
