@@ -558,9 +558,12 @@ function notesTab(ctx) {
     .map(([sub, list]) => el('div', { class: 'row' }, [
       el('span', { class: 'row-name' }, sub), el('span', { class: 'row-value wrap' }, list.join(', ')),
     ]));
-  const scars = ['battle', 'mental', 'social'].flatMap((kind) => scarsOfKind(state, kind).map((s) => el('div', { class: 'row' }, [
+  // The Creator's keys, one per Vital: 'battle' is Health and 'poise' is Social,
+  // both older than the Social name (app/steps/tab-scars.js).
+  const scarKinds = [['battle', 'Physical'], ['poise', 'Social'], ['mental', 'Mental']];
+  const scars = scarKinds.flatMap(([kind, label]) => scarsOfKind(state, kind).map((s) => el('div', { class: 'row' }, [
     el('span', { class: 'row-name' }, s.title || s.description || 'Scar'),
-    el('span', { class: 'row-value' }, `${kind}${s.belowZero ? ' · below 0' : ''}`),
+    el('span', { class: 'row-value' }, `${label}${s.belowZero ? ' · below 0' : ''}`),
   ])));
   const text = (label, key) => el('label', { class: 'textbox' }, [
     el('span', {}, label),
